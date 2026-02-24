@@ -1,5 +1,7 @@
 # Getting started with vinext and Replicate
 
+![screenshot of the app generating an iguana](public/screenshot.png)
+
 This is a [vinext](https://github.com/cloudflare/vinext) starter app that uses [Replicate](https://replicate.com) to generate images with [Flux Schnell](https://replicate.com/black-forest-labs/flux-schnell). It deploys to [Cloudflare Workers](https://developers.cloudflare.com/workers/).
 
 vinext is a drop-in replacement for Next.js built on [Vite](https://vite.dev/). It reimplements the Next.js API surface so your existing `app/` directory, route handlers, and `next/*` imports work as-is, but the build runs on Vite and deploys to Cloudflare Workers with a single command.
