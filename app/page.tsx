@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import Image from "next/image";
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 interface Prediction {
   id: string;
@@ -13,52 +12,59 @@ interface Prediction {
   error?: string;
 }
 
+async function createPrediction(prompt: string): Promise<Prediction> {
+  const response = await fetch("/api/predictions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt }),
+  });
+  const prediction = await response.json();
+  if (response.status !== 201) {
+    throw new Error(prediction.detail ?? "Something went wrong");
+  }
+  return prediction;
+}
+
+async function fetchPrediction(id: string): Promise<Prediction> {
+  const response = await fetch(`/api/predictions/${id}`);
+  const prediction = await response.json();
+  if (response.status !== 200) {
+    throw new Error(prediction.detail ?? "Something went wrong");
+  }
+  return prediction;
+}
+
 export default function Home() {
-  const [prediction, setPrediction] = useState<Prediction | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [predictionId, setPredictionId] = useState<string | null>(null);
   const promptInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     promptInputRef.current?.focus();
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const mutation = useMutation({
+    mutationFn: createPrediction,
+    onSuccess: (data) => setPredictionId(data.id),
+  });
+
+  const { data: prediction } = useQuery({
+    queryKey: ["prediction", predictionId],
+    queryFn: () => fetchPrediction(predictionId!),
+    enabled: !!predictionId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "succeeded" || status === "failed" ? false : 250;
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const prompt = formData.get("prompt") as string;
-
-    const response = await fetch("/api/predictions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ prompt }),
-    });
-
-    let prediction: Prediction = await response.json();
-
-    if (response.status !== 201) {
-      setError(prediction.detail ?? "Something went wrong");
-      return;
-    }
-
-    setPrediction(prediction);
-
-    while (
-      prediction.status !== "succeeded" &&
-      prediction.status !== "failed"
-    ) {
-      await sleep(250);
-      const response = await fetch(`/api/predictions/${prediction.id}`);
-      prediction = await response.json();
-      if (response.status !== 200) {
-        setError(prediction.detail ?? "Something went wrong");
-        return;
-      }
-      console.log({ prediction });
-      setPrediction(prediction);
-    }
+    mutation.mutate(prompt);
   };
+
+  const error = mutation.error?.message ?? (prediction?.status === "failed" ? prediction.error : null);
 
   return (
     <div className="container max-w-2xl mx-auto p-5">
